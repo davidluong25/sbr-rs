@@ -11,10 +11,20 @@
 //! - LSTM: a model that uses an LSTM network over the sequence of a user's interaction
 //!         to predict their next action;
 //! - EWMA: a model that uses a simpler exponentially-weighted average of past actions
-//!         to predict future interactions.
+//!         to predict future interactions;
+//! - Hybrid: a new model that combines collaborative filtering with LLM-enhanced content features
 //!
 //! Which model performs the best will depend on your dataset. The EWMA model is much
 //! quicker to fit, and will probably be a good starting point.
+//!
+//! ## SaaS Features
+//!
+//! This version includes SaaS capabilities with:
+//! - REST API endpoints for recommendations
+//! - Multi-tenant architecture
+//! - Authentication and authorization
+//! - Vietnamese language support via LLM integration
+//! - Industry-specific templates
 //!
 //! ## Example
 //! You can fit a model on the Movielens 100K dataset in about 10 seconds:
@@ -56,13 +66,11 @@
 //!     train_mrr, loss, test_mrr, elapsed
 //! );
 //! ```
-#[macro_use]
 extern crate itertools;
 
 #[cfg(feature = "default")]
 extern crate csv;
-#[macro_use]
-extern crate failure;
+extern crate anyhow; // Use anyhow instead of failure
 
 #[cfg(feature = "default")]
 extern crate dirs;
@@ -73,6 +81,12 @@ pub mod datasets;
 pub mod evaluation;
 pub mod models;
 
+// Export the new SaaS modules
+pub mod api;
+pub mod saas;
+pub mod llm;
+pub mod database;
+
 /// Alias for user indices.
 pub type UserId = usize;
 /// Alias for item indices.
@@ -81,20 +95,42 @@ pub type ItemId = usize;
 pub type Timestamp = usize;
 
 /// Prediction error types.
-#[derive(Debug, Fail)]
+#[derive(Debug)]
 pub enum PredictionError {
     /// Failed prediction due to numerical issues.
-    #[fail(display = "Invalid prediction value: non-finite or not a number.")]
     InvalidPredictionValue,
 }
 
+impl std::fmt::Display for PredictionError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            PredictionError::InvalidPredictionValue => {
+                write!(f, "Invalid prediction value: non-finite or not a number.")
+            }
+        }
+    }
+}
+
+impl std::error::Error for PredictionError {}
+
 /// Fitting error types.
-#[derive(Debug, Fail)]
+#[derive(Debug)]
 pub enum FittingError {
     /// No interactions were given.
-    #[fail(display = "No interactions were supplied.")]
     NoInteractions,
 }
+
+impl std::fmt::Display for FittingError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            FittingError::NoInteractions => {
+                write!(f, "No interactions were supplied.")
+            }
+        }
+    }
+}
+
+impl std::error::Error for FittingError {}
 
 /// Trait describing models that can compute predictions given
 /// a user's sequences of past interactions.
